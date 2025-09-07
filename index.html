@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Vault</title>
+  <style>
+    :root {
+      --bg: #f9fafb;
+      --fg: #111827;
+      --section-bg: #ffffff;
+      --section-border: #e5e7eb;
+      --btn-green: #22c55e;
+      --btn-green-hover: #16a34a;
+      --btn-purple: #8b5cf6;
+      --btn-purple-hover: #7c3aed;
+    }
+
+    body.dark {
+      --bg: #111827;
+      --fg: #f9fafb;
+      --section-bg: #1f2937;
+      --section-border: #374151;
+    }
+
+    body {
+      font-family: system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--fg);
+      margin: 0;
+      padding: 2rem;
+      display: flex;
+      justify-content: center;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 720px;
+    }
+
+    h2 {
+      margin-top: 0;
+      text-align: center;
+    }
+
+    .section {
+      background: var(--section-bg);
+      border: 1px solid var(--section-border);
+      border-radius: 0.75rem;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+
+    label {
+      font-weight: 600;
+      display: block;
+      margin-bottom: 0.25rem;
+    }
+
+    input, textarea {
+      width: 100%;
+      border: 1px solid var(--section-border);
+      border-radius: 0.5rem;
+      padding: 0.5rem;
+      background: var(--section-bg);
+      color: var(--fg);
+      margin-bottom: 1rem;
+      font-family: monospace;
+    }
+
+    textarea {
+      min-height: 150px;
+      resize: vertical;
+    }
+
+    button {
+      padding: 0.5rem 1rem;
+      border: none;
+      border-radius: 0.5rem;
+      color: white;
+      font-weight: 600;
+      cursor: pointer;
+      margin-right: 0.5rem;
+    }
+
+    .btn-green { background: var(--btn-green); }
+    .btn-green:hover { background: var(--btn-green-hover); }
+    .btn-purple { background: var(--btn-purple); }
+    .btn-purple:hover { background: var(--btn-purple-hover); }
+
+    .toggle {
+      text-align: center;
+      margin-top: 2rem;
+    }
+
+    .toggle button {
+      background: var(--btn-purple);
+    }
+    .toggle button:hover {
+      background: var(--btn-purple-hover);
+    }
+  </style>
+</head>
+<body class="dark">
+  <div class="container">
+    <h2>Vault</h2>
+
+    <div class="section">
+      <label for="password">Password</label>
+      <input id="password" type="text">
+
+      <label for="input">Input (plaintext to encrypt OR ciphertext to decrypt)</label>
+      <textarea id="input"></textarea>
+
+      <div>
+        <button class="btn-green" onclick="encrypt()">Encrypt</button>
+        <button class="btn-purple" onclick="decrypt()">Decrypt</button>
+      </div>
+    </div>
+
+    <div class="section">
+      <label for="output">Output</label>
+      <textarea id="output" readonly></textarea>
+    </div>
+
+    <div class="toggle">
+      <button onclick="toggleDark()">Toggle Light/Dark</button>
+    </div>
+  </div>
+
+  <script>
+    function bufToB64(buf) {
+      return btoa(String.fromCharCode(...new Uint8Array(buf)));
+    }
+    function b64ToBuf(b64) {
+      return Uint8Array.from(atob(b64), c => c.charCodeAt(0)).buffer;
+    }
+
+    async function deriveKey(password, salt) {
+      const enc = new TextEncoder();
+      const keyMaterial = await crypto.subtle.importKey(
+        "raw", enc.encode(password), "PBKDF2", false, ["deriveKey"]
+      );
+      return crypto.subtle.deriveKey(
+        { name: "PBKDF2", salt, iterations: 200000, hash: "SHA-256" },
+        keyMaterial,
+        { name: "AES-GCM", length: 256 },
+        false,
+        ["encrypt", "decrypt"]
+      );
+    }
+
+    async function encrypt() {
+      const pw = document.getElementById("password").value;
+      const text = document.getElementById("input").value;
+      if (!pw || !text) return alert("Enter password and text.");
+
+      const salt = crypto.getRandomValues(new Uint8Array(16));
+      const key = await deriveKey(pw, salt);
+      const iv = crypto.getRandomValues(new Uint8Array(16));
+
+      const enc = new TextEncoder();
+      const ciphertext = await crypto.subtle.encrypt(
+        { name: "AES-GCM", iv },
+        key,
+        enc.encode(text)
+      );
+
+      const out = bufToB64(salt.buffer) + ":" +
+                  bufToB64(iv.buffer) + ":" +
+                  bufToB64(ciphertext);
+
+      document.getElementById("output").value = out;
+    }
+
+    async function decrypt() {
+      const pw = document.getElementById("password").value;
+      const raw = document.getElementById("input").value;
+      if (!pw || !raw) return alert("Enter password and ciphertext.");
+
+      try {
+        const [saltB64, ivB64, ctB64] = raw.split(":");
+        const salt = new Uint8Array(b64ToBuf(saltB64));
+        const iv = new Uint8Array(b64ToBuf(ivB64));
+        const ciphertext = b64ToBuf(ctB64);
+
+        const key = await deriveKey(pw, salt);
+        const decrypted = await crypto.subtle.decrypt(
+          { name: "AES-GCM", iv },
+          key,
+          ciphertext
+        );
+        const dec = new TextDecoder().decode(decrypted);
+        document.getElementById("output").value = dec;
+      } catch (e) {
+        alert("Decryption failed (wrong password or bad data).");
+      }
+    }
+
+    function toggleDark() {
+      document.body.classList.toggle("dark");
+    }
+  </script>
+</body>
+</html>
