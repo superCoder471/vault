@@ -13,6 +13,8 @@
       --btn-green-hover: #16a34a;
       --btn-purple: #8b5cf6;
       --btn-purple-hover: #7c3aed;
+      --btn-blue: #3b82f6;
+      --btn-blue-hover: #2563eb;
     }
 
     body.dark {
@@ -63,13 +65,19 @@
       padding: 0.5rem;
       background: var(--section-bg);
       color: var(--fg);
-      margin-bottom: 1rem;
+      margin-bottom: 0.5rem;
       font-family: monospace;
     }
 
     textarea {
       min-height: 150px;
       resize: vertical;
+    }
+
+    .btn-row {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
     }
 
     button {
@@ -79,13 +87,14 @@
       color: white;
       font-weight: 600;
       cursor: pointer;
-      margin-right: 0.5rem;
     }
 
     .btn-green { background: var(--btn-green); }
     .btn-green:hover { background: var(--btn-green-hover); }
     .btn-purple { background: var(--btn-purple); }
     .btn-purple:hover { background: var(--btn-purple-hover); }
+    .btn-blue { background: var(--btn-blue); }
+    .btn-blue:hover { background: var(--btn-blue-hover); }
 
     .toggle {
       text-align: center;
@@ -97,6 +106,29 @@
     }
     .toggle button:hover {
       background: var(--btn-purple-hover);
+    }
+
+    /* ✅ Little checkmark toast */
+    .toast {
+      position: fixed;
+      bottom: 1rem;
+      right: 1rem;
+      background: var(--btn-green);
+      color: white;
+      padding: 0.5rem 1rem;
+      border-radius: 0.5rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      opacity: 0;
+      transform: translateY(20px);
+      pointer-events: none;
+      transition: opacity 0.3s ease, transform 0.3s ease;
+    }
+    .toast.show {
+      opacity: 1;
+      transform: translateY(0);
     }
   </style>
 </head>
@@ -110,8 +142,11 @@
 
       <label for="input">Input (plaintext to encrypt OR ciphertext to decrypt)</label>
       <textarea id="input"></textarea>
+      <div class="btn-row">
+        <button class="btn-blue" onclick="pasteToInput()">Paste</button>
+      </div>
 
-      <div>
+      <div class="btn-row">
         <button class="btn-green" onclick="encrypt()">Encrypt</button>
         <button class="btn-purple" onclick="decrypt()">Decrypt</button>
       </div>
@@ -120,12 +155,18 @@
     <div class="section">
       <label for="output">Output</label>
       <textarea id="output" readonly></textarea>
+      <div class="btn-row">
+        <button class="btn-blue" onclick="copyFromOutput()">Copy</button>
+      </div>
     </div>
 
     <div class="toggle">
       <button onclick="toggleDark()">Toggle Light/Dark</button>
     </div>
   </div>
+
+  <!-- ✅ Toast element -->
+  <div id="toast" class="toast">✔ Copied!</div>
 
   <script>
     function bufToB64(buf) {
@@ -198,6 +239,31 @@
 
     function toggleDark() {
       document.body.classList.toggle("dark");
+    }
+
+    async function copyFromOutput() {
+      const output = document.getElementById("output");
+      if (!output.value) return;
+      await navigator.clipboard.writeText(output.value);
+      showToast("✔ Copied!");
+    }
+
+    async function pasteToInput() {
+      try {
+        const text = await navigator.clipboard.readText();
+        document.getElementById("input").value = text;
+      } catch (e) {
+        alert("Failed to read from clipboard.");
+      }
+    }
+
+    function showToast(message) {
+      const toast = document.getElementById("toast");
+      toast.textContent = message;
+      toast.classList.add("show");
+      setTimeout(() => {
+        toast.classList.remove("show");
+      }, 1500);
     }
   </script>
 </body>
